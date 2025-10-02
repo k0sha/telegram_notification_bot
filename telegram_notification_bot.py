@@ -24,11 +24,7 @@ try:
 except KeyError as e:
     raise SystemExit(f"Нет обязательной переменной окружения: {e}")
 
-# опциональные источники: группа и/или канал
-SOURCE_GROUP_ID = os.environ.get("SOURCE_GROUP_ID")
-if SOURCE_GROUP_ID:
-    SOURCE_GROUP_ID = int(SOURCE_GROUP_ID)
-
+# источник: канал
 SOURCE_CHANNEL_ID = os.environ.get("SOURCE_CHANNEL_ID")
 if SOURCE_CHANNEL_ID:
     SOURCE_CHANNEL_ID = int(SOURCE_CHANNEL_ID)
@@ -96,8 +92,8 @@ async def main():
     # посты из каналов только
     app.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_channel_post))
     log.info(
-        "started. source_group=%s source_channel=%s target_superchat=%s",
-        SOURCE_GROUP_ID, SOURCE_CHANNEL_ID, SUPERCHAT_ID,
+        "started. source_channel=%s target_superchat=%s",
+        SOURCE_CHANNEL_ID, SUPERCHAT_ID,
     )
     await app.initialize()
     await app.start()
