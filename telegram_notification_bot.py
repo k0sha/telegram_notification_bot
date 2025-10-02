@@ -13,6 +13,10 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("notification_bot")
 
+# suppress noisy httpx/telegram logs
+for noisy in ["httpx", "telegram", "apscheduler", "urllib3"]:
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
 # обязательные переменные
 try:
     BOT_TOKEN = os.environ["BOT_TOKEN"]
