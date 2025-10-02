@@ -84,6 +84,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     msg = update.message
     if not msg:
         return
+    log.info("message chat=%s text_len=%s caption_len=%s", msg.chat_id, len(msg.text or ""), len(msg.caption or ""))
     # если указан SOURCE_GROUP_ID — фильтруем по нему; если нет — принимаем все групповые сообщения
     if SOURCE_GROUP_ID is not None and msg.chat_id != SOURCE_GROUP_ID:
         return
@@ -94,6 +95,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     msg = update.channel_post
     if not msg:
         return
+    log.info("channel_post chat=%s text_len=%s caption_len=%s", msg.chat_id, len(msg.text or ""), len(msg.caption or ""))
     # если указан SOURCE_CHANNEL_ID — фильтруем по нему; если нет — принимаем все посты каналов
     if SOURCE_CHANNEL_ID is not None and msg.chat_id != SOURCE_CHANNEL_ID:
         return
@@ -105,7 +107,7 @@ async def main():
     # сообщения из групп/супергрупп
     app.add_handler(MessageHandler(filters.TEXT | filters.Caption(), handle_message))
     # посты из каналов
-    app.add_handler(MessageHandler(filters.ChatType.CHANNEL & (filters.TEXT | filters.Caption()), handle_channel_post))
+    app.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_channel_post))
     log.info(
         "started. source_group=%s source_channel=%s target_superchat=%s",
         SOURCE_GROUP_ID, SOURCE_CHANNEL_ID, SUPERCHAT_ID,
