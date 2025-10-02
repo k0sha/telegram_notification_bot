@@ -80,17 +80,6 @@ async def match_and_send(text: str, context: ContextTypes.DEFAULT_TYPE) -> None:
             log.exception("send failed: %s", e)
         break  # одно совпадение на сообщение
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = update.message
-    if not msg:
-        return
-    log.info("message chat=%s text_len=%s caption_len=%s", msg.chat_id, len(msg.text or ""), len(msg.caption or ""))
-    # если указан SOURCE_GROUP_ID — фильтруем по нему; если нет — принимаем все групповые сообщения
-    if SOURCE_GROUP_ID is not None and msg.chat_id != SOURCE_GROUP_ID:
-        return
-    text = msg.text or msg.caption or ""
-    await match_and_send(text, context)
-
 async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg = update.channel_post
     if not msg:
@@ -104,9 +93,7 @@ async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    # сообщения из групп/супергрупп
-    app.add_handler(MessageHandler(filters.TEXT | filters.Caption(), handle_message))
-    # посты из каналов
+    # посты из каналов только
     app.add_handler(MessageHandler(filters.ChatType.CHANNEL, handle_channel_post))
     log.info(
         "started. source_group=%s source_channel=%s target_superchat=%s",
@@ -115,7 +102,7 @@ async def main():
     await app.initialize()
     await app.start()
     try:
-        await app.updater.start_polling(allowed_updates=["message", "channel_post"])
+        await app.updater.start_polling(allowed_updates=["channel_post"])
         await asyncio.Event().wait()
     finally:
         await app.updater.stop()
