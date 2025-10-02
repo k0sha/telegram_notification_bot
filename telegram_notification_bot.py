@@ -1,4 +1,4 @@
-import os, re, logging, asyncio, yaml
+import os, re, logging, asyncio, yaml, signal
 from dataclasses import dataclass
 from typing import List, Pattern, Dict, Any
 from jinja2 import Template
