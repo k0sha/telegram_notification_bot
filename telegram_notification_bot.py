@@ -21,7 +21,7 @@ try:
 except KeyError as e:
     raise SystemExit(f"Нет переменной окружения: {e}")
 
-RULES_FILE = os.environ.get("RULES_FILE", "/app/rules.yml")
+RULES_FILE = os.environ.get("RULES_FILE", "/rules.yml")
 
 @dataclass
 class Rule:
