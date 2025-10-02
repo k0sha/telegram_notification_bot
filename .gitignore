@@ -1,0 +1,4 @@
+.env
+rules.yml
+__pycache__/
+*.pyc
