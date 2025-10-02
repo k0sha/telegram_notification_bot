@@ -38,15 +38,38 @@ class Rule:
     template: Template
 
 def load_rules(path: str) -> List[Rule]:
-    with open(path, "r", encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or []
+    except FileNotFoundError:
+        log.error("rules file not found: %s", path)
+        raise
+    except yaml.YAMLError as e:
+        log.error("invalid YAML in %s: %s", path, e)
+        raise
+
     rules: List[Rule] = []
+    if not isinstance(raw, list):
+        log.error("rules root must be a list, got: %s", type(raw).__name__)
+        raise SystemExit(1)
+
     for i, r in enumerate(raw):
-        pat = re.compile(r["pattern"], re.MULTILINE)
-        topic_id = int(r["topic_id"])
-        tpl = Template(r["template"])
+        try:
+            pattern_str = r["pattern"]
+            topic_id = int(r["topic_id"])
+            template_str = r["template"]
+        except Exception as e:
+            log.error("rule %d missing/invalid keys: %s", i, e)
+            raise
+        try:
+            pat = re.compile(pattern_str, re.MULTILINE)
+        except re.error as e:
+            log.error("rule %d regex error: %s", i, e)
+            raise
+        tpl = Template(template_str)
         rules.append(Rule(pat, topic_id, tpl))
         log.info("rule %d -> topic %s", i, topic_id)
+
     if not rules:
         log.warning("rules file is empty: %s", path)
     return rules
