@@ -16,10 +16,18 @@ log = logging.getLogger("notification_bot")
 # обязательные переменные
 try:
     BOT_TOKEN = os.environ["BOT_TOKEN"]
-    SOURCE_GROUP_ID = int(os.environ["SOURCE_GROUP_ID"])
     SUPERCHAT_ID = int(os.environ["SUPERCHAT_ID"])
 except KeyError as e:
-    raise SystemExit(f"Нет переменной окружения: {e}")
+    raise SystemExit(f"Нет обязательной переменной окружения: {e}")
+
+# опциональные источники: группа и/или канал
+SOURCE_GROUP_ID = os.environ.get("SOURCE_GROUP_ID")
+if SOURCE_GROUP_ID:
+    SOURCE_GROUP_ID = int(SOURCE_GROUP_ID)
+
+SOURCE_CHANNEL_ID = os.environ.get("SOURCE_CHANNEL_ID")
+if SOURCE_CHANNEL_ID:
+    SOURCE_CHANNEL_ID = int(SOURCE_CHANNEL_ID)
 
 RULES_FILE = os.environ.get("RULES_FILE", "/rules.yml")
 
@@ -45,23 +53,15 @@ def load_rules(path: str) -> List[Rule]:
 
 RULES = load_rules(RULES_FILE)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    msg = update.message
-    if not msg or msg.chat_id != SOURCE_GROUP_ID:
-        return
-
-    text = msg.text or msg.caption or ""
+async def match_and_send(text: str, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not text:
         return
-
     for rule in RULES:
         m = rule.pattern.search(text)
         if not m:
             continue
-
         data: Dict[str, Any] = m.groupdict()
         data["_raw"] = text
-
         out_text = rule.template.render(**data)
         try:
             await context.bot.send_message(
@@ -76,14 +76,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             log.exception("send failed: %s", e)
         break  # одно совпадение на сообщение
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    msg = update.message
+    if not msg:
+        return
+    # если указан SOURCE_GROUP_ID — фильтруем по нему; если нет — принимаем все групповые сообщения
+    if SOURCE_GROUP_ID is not None and msg.chat_id != SOURCE_GROUP_ID:
+        return
+    text = msg.text or msg.caption or ""
+    await match_and_send(text, context)
+
+async def handle_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    msg = update.channel_post
+    if not msg:
+        return
+    # если указан SOURCE_CHANNEL_ID — фильтруем по нему; если нет — принимаем все посты каналов
+    if SOURCE_CHANNEL_ID is not None and msg.chat_id != SOURCE_CHANNEL_ID:
+        return
+    text = msg.text or msg.caption or ""
+    await match_and_send(text, context)
+
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # сообщения из групп/супергрупп
     app.add_handler(MessageHandler(filters.TEXT | filters.Caption(), handle_message))
-    log.info("started. source=%s target=%s", SOURCE_GROUP_ID, SUPERCHAT_ID)
+    # посты из каналов
+    app.add_handler(MessageHandler(filters.ChatType.CHANNEL & (filters.TEXT | filters.Caption()), handle_channel_post))
+    log.info(
+        "started. source_group=%s source_channel=%s target_superchat=%s",
+        SOURCE_GROUP_ID, SOURCE_CHANNEL_ID, SUPERCHAT_ID,
+    )
     await app.initialize()
     await app.start()
     try:
-        await app.updater.start_polling(allowed_updates=["message"])
+        await app.updater.start_polling(allowed_updates=["message", "channel_post"])
         await asyncio.Event().wait()
     finally:
         await app.updater.stop()

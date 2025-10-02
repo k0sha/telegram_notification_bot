@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./rules.yml:/app/rules.yml:ro
+      - ./rules.yml:/rules.yml
     healthcheck:
       test: [ "CMD-SHELL", "curl -fsS https://api.telegram.org/bot$BOT_TOKEN/getMe | grep '\"ok\":true' >/dev/null || exit 1" ]
       interval: 30s
