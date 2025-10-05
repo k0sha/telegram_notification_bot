@@ -28,6 +28,8 @@ except KeyError as e:
 SOURCE_CHANNEL_ID = os.environ.get("SOURCE_CHANNEL_ID")
 if SOURCE_CHANNEL_ID:
     SOURCE_CHANNEL_ID = int(SOURCE_CHANNEL_ID)
+if SOURCE_CHANNEL_ID is None:
+    raise SystemExit("SOURCE_CHANNEL_ID обязателен")
 
 RULES_FILE = os.environ.get("RULES_FILE", "/rules.yml")
 
@@ -41,6 +43,8 @@ def load_rules(path: str) -> List[Rule]:
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f) or []
+            if isinstance(raw, dict) and "rules" in raw:
+                raw = raw.get("rules") or []
     except FileNotFoundError:
         log.error("rules file not found: %s", path)
         raise
@@ -76,6 +80,18 @@ def load_rules(path: str) -> List[Rule]:
 
 RULES = load_rules(RULES_FILE)
 
+# поддержка горячей перезагрузки правил: kill -HUP <pid>
+
+def _handle_sighup(signum, frame):
+    global RULES
+    try:
+        RULES = load_rules(RULES_FILE)
+        log.info("rules reloaded: %d", len(RULES))
+    except Exception as e:
+        log.exception("rules reload failed: %s", e)
+
+signal.signal(signal.SIGHUP, _handle_sighup)
+
 async def match_and_send(text: str, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not text:
         return
@@ -87,14 +103,19 @@ async def match_and_send(text: str, context: ContextTypes.DEFAULT_TYPE) -> None:
         data["_raw"] = text
         out_text = rule.template.render(**data)
         try:
-            await context.bot.send_message(
-                chat_id=SUPERCHAT_ID,
-                text=out_text,
-                message_thread_id=rule.topic_id,
-                parse_mode=None,
-                disable_web_page_preview=True,
+            await asyncio.wait_for(
+                context.bot.send_message(
+                    chat_id=SUPERCHAT_ID,
+                    text=out_text,
+                    message_thread_id=rule.topic_id,
+                    parse_mode=None,
+                    disable_web_page_preview=True,
+                ),
+                timeout=5,
             )
             log.info("sent -> topic %s", rule.topic_id)
+        except asyncio.TimeoutError:
+            log.error("send timeout -> topic %s", rule.topic_id)
         except Exception as e:
             log.exception("send failed: %s", e)
         break  # одно совпадение на сообщение
@@ -121,7 +142,7 @@ async def main():
     await app.initialize()
     await app.start()
     try:
-        await app.updater.start_polling(allowed_updates=["channel_post"])
+        await app.updater.start_polling(allowed_updates=["channel_post"], drop_pending_updates=True)
         await asyncio.Event().wait()
     finally:
         await app.updater.stop()
